@@ -37,6 +37,36 @@ def public_key_fingerprint(public_key_path: Path) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def public_key_bytes_from_private(private_key_path: Path) -> bytes:
+    """Derive the canonical PEM public key for an Ed25519 private key."""
+    serialization, _, _ = _crypto()
+    private_key_path = Path(private_key_path)
+    private_key = serialization.load_pem_private_key(private_key_path.read_bytes(), password=None)
+    return private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+
+
+def restore_public_key(private_key_path: Path, public_key_path: Path) -> Path:
+    """Recreate a missing or empty public key from the existing private key."""
+    public_key_path = Path(public_key_path)
+    public_key_path.parent.mkdir(parents=True, exist_ok=True)
+    public_key_path.write_bytes(public_key_bytes_from_private(Path(private_key_path)))
+    return public_key_path
+
+
+def keypair_matches(private_key_path: Path, public_key_path: Path) -> bool:
+    """Return True only when the public key belongs to the supplied private key."""
+    public_key_path = Path(public_key_path)
+    if not public_key_path.is_file() or public_key_path.stat().st_size == 0:
+        return False
+    try:
+        return public_key_path.read_bytes() == public_key_bytes_from_private(Path(private_key_path))
+    except Exception:
+        return False
+
+
 def generate_keypair(private_key_path: Path, public_key_path: Path) -> Tuple[Path, Path]:
     serialization, Ed25519PrivateKey, _ = _crypto()
     private_key_path = Path(private_key_path)

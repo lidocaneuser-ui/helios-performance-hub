@@ -13,7 +13,12 @@ import zipfile
 from pathlib import Path
 from typing import Dict, Iterable, List, Sequence
 
-from helios_core.signing import generate_keypair, write_signature
+from helios_core.signing import (
+    generate_keypair,
+    keypair_matches,
+    restore_public_key,
+    write_signature,
+)
 
 APP_ID = "helios-performance-control-hub"
 UPDATER_PROTOCOL = 1  # Kept compatible with every installed 4.x updater.
@@ -169,7 +174,13 @@ def build_package(
         if not private_key.is_file():
             raise FileNotFoundError(f"Release signing key is missing: {private_key}")
         if not public_key.is_file() or public_key.stat().st_size == 0:
-            raise RuntimeError("release_public_key.pem must contain the matching public key before signing.")
+            restore_public_key(private_key, public_key)
+            print(f"Recovered trusted public key from: {private_key}")
+        if not keypair_matches(private_key, public_key):
+            raise RuntimeError(
+                "The private release key does not match release_public_key.pem. "
+                "Restore the correct private key; do not publish this release."
+            )
         signature = output / f"{package_name}.sig"
         write_signature(package, private_key, signature, public_key)
         assets.append(signature)
@@ -208,12 +219,29 @@ def publish(repo: str, version: str, assets: Sequence[Path], notes_file: Path, p
 
 def ensure_signing_key(project: Path, private_key: Path, force: bool = False) -> None:
     public_key = project / "release_public_key.pem"
-    if private_key.exists() and public_key.exists() and public_key.stat().st_size > 0 and not force:
-        print(f"Signing key already configured: {private_key}")
-        return
     if force:
         private_key.unlink(missing_ok=True)
         public_key.unlink(missing_ok=True)
+
+    if private_key.is_file():
+        if not public_key.is_file() or public_key.stat().st_size == 0:
+            restore_public_key(private_key, public_key)
+            print(f"Recovered trusted public key from: {private_key}")
+        elif not keypair_matches(private_key, public_key):
+            raise RuntimeError(
+                "The private release key does not match release_public_key.pem. "
+                "Restore the correct private key. Use --force-new-key only before any signed release has shipped."
+            )
+        print(f"Signing key verified: {private_key}")
+        print(f"Trusted public key: {public_key}")
+        return
+
+    if public_key.is_file() and public_key.stat().st_size > 0:
+        raise RuntimeError(
+            "release_public_key.pem is already trusted, but its private key is missing. "
+            f"Restore the private key to {private_key}; generating a replacement would break future updates."
+        )
+
     private, public = generate_keypair(private_key, public_key)
     print(f"Private release key: {private}")
     print(f"Trusted public key: {public}")

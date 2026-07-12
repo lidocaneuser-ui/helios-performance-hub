@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [string]$Repository = 'lidocaneuser-ui/helios-performance-hub',
     [string]$DevelopmentRoot = "$env:USERPROFILE\Documents\GitHub\helios-performance-hub",
@@ -7,8 +7,22 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$SourceRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
-$DevelopmentRoot = [System.IO.Path]::GetFullPath($DevelopmentRoot)
+$SourceRoot = [System.IO.Path]::GetFullPath((Split-Path -Parent $MyInvocation.MyCommand.Path))
+
+# Windows batch files can accidentally pass a trailing quote when a quoted path
+# ends in a backslash (for example C:\Folder\"). Normalize defensively so
+# first-run setup and future publishing both accept ordinary Windows paths.
+if ([string]::IsNullOrWhiteSpace($DevelopmentRoot)) {
+    $DevelopmentRoot = Join-Path $env:USERPROFILE 'Documents\GitHub\helios-performance-hub'
+}
+$DevelopmentRoot = [Environment]::ExpandEnvironmentVariables([string]$DevelopmentRoot).Trim()
+$DevelopmentRoot = $DevelopmentRoot.Trim([char[]]@([char]34, [char]39))
+try {
+    $DevelopmentRoot = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($DevelopmentRoot)
+}
+catch {
+    throw "The development path is invalid: <$DevelopmentRoot>. Use a normal local folder path without embedded quote characters."
+}
 $PrivateKey = Join-Path $env:USERPROFILE '.helios-release\ed25519-private.pem'
 
 function Resolve-Git {
@@ -52,6 +66,10 @@ if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
 if ($LASTEXITCODE -ne 0) { throw 'GitHub CLI is not authenticated.' }
 
 $Git = Resolve-Git
+$GitDirectory = Split-Path -Parent $Git
+if (($env:Path -split ';') -notcontains $GitDirectory) {
+    $env:Path = "$GitDirectory;$env:Path"
+}
 & gh auth setup-git
 if ($LASTEXITCODE -ne 0) { throw 'GitHub could not configure Git credentials.' }
 $Python = Resolve-Python
@@ -102,11 +120,9 @@ Write-Host 'Installing development dependencies...'
 Invoke-Python -m pip install --disable-pip-version-check --upgrade -r requirements-dev.txt
 if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
 
-if (-not (Test-Path $PrivateKey -PathType Leaf) -or (Get-Item release_public_key.pem).Length -eq 0) {
-    Write-Host 'Creating the private production release key and public trust key...'
-    Invoke-Python helios_release.py --generate-signing-key --signing-key $PrivateKey
-    if ($LASTEXITCODE -ne 0) { throw 'Release-key generation failed.' }
-}
+Write-Host 'Verifying the private release key and public trust key...'
+Invoke-Python helios_release.py --generate-signing-key --signing-key $PrivateKey
+if ($LASTEXITCODE -ne 0) { throw 'Release-key verification or recovery failed.' }
 
 Write-Host 'Running production validation...'
 Invoke-Python -m compileall -q helios_performance_hub.py helios_update.py helios_update_worker.py helios_launcher.py helios_release.py helios_core
