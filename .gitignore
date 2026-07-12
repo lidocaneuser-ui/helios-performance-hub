@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Build output
+build/
+dist/
+*.spec
+release_artifacts/
+
+# Local release credentials
+*.private.pem
+.helios-release/
+
+# Local runtime state
+data/
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

@@ -1,0 +1,16 @@
+HELIOS PERFORMANCE CONTROL HUB 5.0 — PRODUCTION RELEASE
+
+For the first production setup:
+
+1. Double-click Developer_Setup.cmd.
+2. The script moves development into:
+   %USERPROFILE%\Documents\GitHub\helios-performance-hub
+3. It installs Git if needed, creates your private release-signing key, runs all tests,
+   pushes the source to GitHub, and publishes v5.0.0.
+4. Open installed Helios, click CHECK FOR UPDATES, then install 5.0.0.
+
+Keep this private key backed up and never upload it:
+%USERPROFILE%\.helios-release\ed25519-private.pem
+
+For future releases, work only in the Documents\GitHub development folder and run
+Publish_Update.cmd after increasing the version and editing release notes.

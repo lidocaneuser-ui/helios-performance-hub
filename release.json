@@ -1,0 +1,22 @@
+{
+  "app_id": "helios-performance-control-hub",
+  "version": "5.0.0",
+  "updater_protocol": 1,
+  "release_format": 2,
+  "supported_install_modes": [
+    "source"
+  ],
+  "required_files": [
+    "release.json"
+  ],
+  "mode_required_files": {
+    "source": [
+      "helios_performance_hub.py",
+      "helios_update.py",
+      "helios_update_worker.py",
+      "helios_launcher.py",
+      "helios_core",
+      "requirements.txt"
+    ]
+  }
+}
